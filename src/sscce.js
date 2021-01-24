@@ -24,13 +24,52 @@ module.exports = async function() {
     }
   });
 
-  const Foo = sequelize.define('Foo', { name: DataTypes.TEXT });
+  const User = sequelize.define('user', {
+    username: Support.Sequelize.STRING,
+    awesome: Support.Sequelize.BOOLEAN
+  }, { timestamps: false });
 
-  const spy = sinon.spy();
-  sequelize.afterBulkSync(() => spy());
-  await sequelize.sync();
-  expect(spy).to.have.been.called;
+  const t1CommitSpy = sinon.spy();
+  const t2FindSpy = sinon.spy();
+  const t2UpdateSpy = sinon.spy();
 
-  log(await Foo.create({ name: 'foo' }));
-  expect(await Foo.count()).to.equal(1);
+  await sequelize.sync({ force: true });
+  const user = await User.create({ username: 'jan' });
+
+  const t1 = await sequelize.transaction();
+  const t1Jan = await User.findByPk(user.id, {
+    lock: t1.LOCK.SHARE,
+    transaction: t1
+  });
+
+  const t2 = await sequelize.transaction({
+    isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+  });
+
+  await Promise.all([
+    (async () => {
+      const t2Jan = await User.findByPk(user.id, {
+        transaction: t2
+      });
+
+      t2FindSpy();
+
+      await t2Jan.update({ awesome: false }, { transaction: t2 });
+      t2UpdateSpy();
+
+      await t2.commit();
+    })(),
+    (async () => {
+      await t1Jan.update({ awesome: true }, { transaction: t1 });
+      await delay(2000);
+      t1CommitSpy();
+      await t1.commit();
+    })()
+  ]);
+
+  // (t2) find call should have returned before (t1) commit
+  expect(t2FindSpy).to.have.been.calledBefore(t1CommitSpy);
+
+  // But (t2) update call should not happen before (t1) commit
+  expect(t2UpdateSpy).to.have.been.calledAfter(t1CommitSpy);
 };
