@@ -54,21 +54,42 @@ module.exports = async function() {
 
     await Promise.all([
       (async () => {
+        // Started (passing): 60    (A)
+        // Finished (passing): 62   (C)
+        // Started (failing): 60    (A)
+        // Finished (failing): 62   (C)
         const t2Jan = await User.findByPk(user.id, {
           transaction: t2
         });
 
         t2FindSpy();
 
+        // Started (passing): 65    (D)
+        // Finished (passing): 70   (G)
+        // Started (failing): 65    (D)
+        // Finished (failing): ??   (?)
         await t2Jan.update({ awesome: false }, { transaction: t2 });
         t2UpdateSpy();
 
+        // Started (passing): 71    (H)
+        // Finished (passing): 76   (J)
+        // Started (failing): ??    (?)
+        // Finished (failing): ??   (?)
         await t2.commit();
       })(),
       (async () => {
+        // Started (passing): 61    (B)
+        // Finished (passing): 66   (E)
+        // Started (failing): 61    (B)
+        // Finished (failing): 66   (E)
         await t1Jan.update({ awesome: true }, { transaction: t1 });
         await delay(2000);
         t1CommitSpy();
+
+        // Started (passing): 69    (F)
+        // Finished (passing): 74   (I)
+        // Started (failing): ??    (?)
+        // Finished (failing): ??   (?)
         await t1.commit();
       })()
     ]);
@@ -81,11 +102,11 @@ module.exports = async function() {
 
   }
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 300; i++) {
     console.log('### TEST ' + i);
 
     await singleTest();
 
-    await delay(2000);
+    await delay(10);
   }
 };
