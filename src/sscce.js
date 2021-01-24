@@ -14,6 +14,8 @@ const log = require('./utils/log');
 const sinon = require('sinon');
 const { expect } = require('chai');
 
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
 // Your SSCCE goes inside this function.
 module.exports = async function() {
   if (process.env.DIALECT !== "mysql" && process.env.DIALECT !== "mariadb") return;
