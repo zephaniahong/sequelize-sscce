@@ -1,7 +1,7 @@
 'use strict';
 
 // Require the necessary things from Sequelize
-const { Sequelize, Op, Model, DataTypes } = require('sequelize');
+const { Sequelize, Op, Model, DataTypes, Transaction } = require('sequelize');
 
 // This function should be used instead of `new Sequelize()`.
 // It applies the config for your SSCCE to work on CI.
@@ -16,6 +16,8 @@ const { expect } = require('chai');
 
 // Your SSCCE goes inside this function.
 module.exports = async function() {
+  if (process.env.DIALECT !== "mysql" && process.env.DIALECT !== "mariadb") return;
+  
   const sequelize = createSequelizeInstance({
     logQueryParameters: true,
     benchmark: true,
@@ -25,8 +27,8 @@ module.exports = async function() {
   });
 
   const User = sequelize.define('user', {
-    username: Support.Sequelize.STRING,
-    awesome: Support.Sequelize.BOOLEAN
+    username: DataTypes.STRING,
+    awesome: DataTypes.BOOLEAN
   }, { timestamps: false });
 
   const t1CommitSpy = sinon.spy();
