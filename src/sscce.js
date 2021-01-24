@@ -19,7 +19,7 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 // Your SSCCE goes inside this function.
 module.exports = async function() {
   if (process.env.DIALECT !== "mysql" && process.env.DIALECT !== "mariadb") return;
-  
+
   const sequelize = createSequelizeInstance({
     logQueryParameters: true,
     benchmark: true,
@@ -28,52 +28,64 @@ module.exports = async function() {
     }
   });
 
-  const User = sequelize.define('user', {
-    username: DataTypes.STRING,
-    awesome: DataTypes.BOOLEAN
-  }, { timestamps: false });
+  async function singleTest() {
 
-  const t1CommitSpy = sinon.spy();
-  const t2FindSpy = sinon.spy();
-  const t2UpdateSpy = sinon.spy();
+    const User = sequelize.define('user', {
+      username: DataTypes.STRING,
+      awesome: DataTypes.BOOLEAN
+    }, { timestamps: false });
 
-  await sequelize.sync({ force: true });
-  const user = await User.create({ username: 'jan' });
+    const t1CommitSpy = sinon.spy();
+    const t2FindSpy = sinon.spy();
+    const t2UpdateSpy = sinon.spy();
 
-  const t1 = await sequelize.transaction();
-  const t1Jan = await User.findByPk(user.id, {
-    lock: t1.LOCK.SHARE,
-    transaction: t1
-  });
+    await sequelize.sync({ force: true });
+    const user = await User.create({ username: 'jan' });
 
-  const t2 = await sequelize.transaction({
-    isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
-  });
+    const t1 = await sequelize.transaction();
+    const t1Jan = await User.findByPk(user.id, {
+      lock: t1.LOCK.SHARE,
+      transaction: t1
+    });
 
-  await Promise.all([
-    (async () => {
-      const t2Jan = await User.findByPk(user.id, {
-        transaction: t2
-      });
+    const t2 = await sequelize.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
 
-      t2FindSpy();
+    await Promise.all([
+      (async () => {
+        const t2Jan = await User.findByPk(user.id, {
+          transaction: t2
+        });
 
-      await t2Jan.update({ awesome: false }, { transaction: t2 });
-      t2UpdateSpy();
+        t2FindSpy();
 
-      await t2.commit();
-    })(),
-    (async () => {
-      await t1Jan.update({ awesome: true }, { transaction: t1 });
-      await delay(2000);
-      t1CommitSpy();
-      await t1.commit();
-    })()
-  ]);
+        await t2Jan.update({ awesome: false }, { transaction: t2 });
+        t2UpdateSpy();
 
-  // (t2) find call should have returned before (t1) commit
-  expect(t2FindSpy).to.have.been.calledBefore(t1CommitSpy);
+        await t2.commit();
+      })(),
+      (async () => {
+        await t1Jan.update({ awesome: true }, { transaction: t1 });
+        await delay(2000);
+        t1CommitSpy();
+        await t1.commit();
+      })()
+    ]);
 
-  // But (t2) update call should not happen before (t1) commit
-  expect(t2UpdateSpy).to.have.been.calledAfter(t1CommitSpy);
+    // (t2) find call should have returned before (t1) commit
+    expect(t2FindSpy).to.have.been.calledBefore(t1CommitSpy);
+
+    // But (t2) update call should not happen before (t1) commit
+    expect(t2UpdateSpy).to.have.been.calledAfter(t1CommitSpy);
+
+  }
+
+  for (let i = 0; i < 20; i++) {
+    console.log('### TEST ' + i);
+
+    await singleTest();
+
+    await delay(2000);
+  }
 };

@@ -32,6 +32,7 @@ jobs:
     env:
       DIALECT: ${{ fromJson(matrix.db).dialect }}
       CI_COMBINATION: ${{ matrix.combination }}
+      DEBUG: 'sequelize:*'
     steps:
       - run: mysql --host 127.0.0.1 --port 3306 -uroot -psequelize_test -e "GRANT ALL ON *.* TO 'sequelize_test'@'%' with grant option; FLUSH PRIVILEGES;"
       - uses: actions/checkout@v2
