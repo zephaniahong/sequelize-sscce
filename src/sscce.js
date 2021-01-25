@@ -29,7 +29,6 @@ module.exports = async function() {
   });
 
   async function singleTest() {
-
     const User = sequelize.define('user', {
       username: DataTypes.STRING,
       awesome: DataTypes.BOOLEAN
@@ -43,6 +42,10 @@ module.exports = async function() {
     const user = await User.create({ username: 'jan' });
 
     const t1 = await sequelize.transaction();
+
+    // Set a shared mode lock on the row.
+    // Other sessions can read the row, but cannot modify it until t1 commits.
+    // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
     const t1Jan = await User.findByPk(user.id, {
       lock: t1.LOCK.SHARE,
       transaction: t1
@@ -67,7 +70,7 @@ module.exports = async function() {
         // Started (passing): 65    (D)
         // Finished (passing): 70   (G)
         // Started (failing): 65    (D)
-        // Finished (failing): ??   (?)
+        // Finished (failing): WOULD RUN BUT DEADLOCK
         await t2Jan.update({ awesome: false }, { transaction: t2 });
         t2UpdateSpy();
 
@@ -99,13 +102,68 @@ module.exports = async function() {
 
     // But (t2) update call should not happen before (t1) commit
     expect(t2UpdateSpy).to.have.been.calledAfter(t1CommitSpy);
+  }
 
+  async function simplifiedTest() {
+    const User = sequelize.define('user', {
+      username: DataTypes.STRING,
+      awesome: DataTypes.BOOLEAN
+    }, { timestamps: false });
+
+    await sequelize.sync({ force: true });
+    await User.create({ username: 'jan' });
+    const t1 = await sequelize.transaction();
+
+    // Set a shared mode lock on the row.
+    // Other sessions can read the row, but cannot modify it until t1 commits.
+    // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
+    const t1Jan = await User.findOne({
+      lock: t1.LOCK.SHARE,
+      transaction: t1
+    });
+
+    const t2 = await sequelize.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+
+    const t2Jan = await User.findOne({ transaction: t2 });
+
+    const executionOrder = [];
+
+    const t2JanUpdatePromise = (async () => {
+      executionOrder.push('Send update query with t2');
+      await t2Jan.update({ awesome: false }, { transaction: t2 });
+      executionOrder.push('Update query with t2 done');
+    })();
+
+    await delay(1000);
+
+    executionOrder.push('Send query to do something with t1');
+    await t1Jan.update({ awesome: true }, { transaction: t1 });
+    executionOrder.push('Query to do something with t1 done');
+
+    await delay(1000);
+
+    executionOrder.push('Send commit query with t1');
+    await t1.commit();
+    executionOrder.push('Commit query with t1 done');
+
+    await t2JanUpdatePromise; // Prevent JS race conditions
+
+    expect(executionOrder).to.deep.equal([
+      'Send update query with t2',
+      'Send query to do something with t1',
+      'Query to do something with t1 done',
+      'Send commit query with t1',
+      'Commit query with t1 done',
+      'Update query with t2 done'
+    ]);
   }
 
   for (let i = 0; i < 300; i++) {
     console.log('### TEST ' + i);
 
-    await singleTest();
+    await simplifiedTest();
 
     await delay(10);
   }
