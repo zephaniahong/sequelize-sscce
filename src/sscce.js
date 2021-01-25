@@ -111,13 +111,13 @@ module.exports = async function() {
     }, { timestamps: false });
 
     await sequelize.sync({ force: true });
-    await User.create({ username: 'jan' });
+    const { id } = await User.create({ username: 'jan' });
     const t1 = await sequelize.transaction();
 
     // Set a shared mode lock on the row.
     // Other sessions can read the row, but cannot modify it until t1 commits.
     // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
-    const t1Jan = await User.findOne({
+    const t1Jan = await User.findByPk(id, {
       lock: t1.LOCK.SHARE,
       transaction: t1
     });
@@ -126,7 +126,7 @@ module.exports = async function() {
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
 
-    const t2Jan = await User.findOne({ transaction: t2 });
+    const t2Jan = await User.findByPk(id, { transaction: t2 });
 
     const executionOrder = [];
 
