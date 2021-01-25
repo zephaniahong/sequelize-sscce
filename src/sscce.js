@@ -141,13 +141,13 @@ module.exports = async function() {
       executed('Update query with t2 done');
     })();
 
-    await delay(1000);
+    await delay(500);
 
     executed('Send query to do something with t1');
     await t1Jan.update({ awesome: true }, { transaction: t1 });
     executed('Query to do something with t1 done');
 
-    // await delay(1000);
+    await delay(500);
 
     executed('Send commit query with t1');
     await t1.commit();
@@ -171,7 +171,7 @@ module.exports = async function() {
     console.log('### TEST ' + i);
 
     try {
-      await mainTest();
+      await simplifiedTest();
     } catch (error) {
       console.error(error);
       if (error.message.includes('Deadlock found when trying to get lock; try restarting transaction')) {
