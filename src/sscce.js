@@ -147,7 +147,7 @@ module.exports = async function() {
     await t1Jan.update({ awesome: true }, { transaction: t1 });
     executed('Query to do something with t1 done');
 
-    await delay(1000);
+    // await delay(1000);
 
     executed('Send commit query with t1');
     await t1.commit();

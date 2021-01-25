@@ -15,7 +15,7 @@ jobs:
           - '{ name: "MySQL 5.7", image: "mysql:5.7", dialect: "mysql" }'
           - '{ name: "MariaDB 10.3", image: "mariadb:10.3", dialect: "mariadb" }'
         combination: ['v5', 'v6']
-        attempt: [1, 2, 3, 4, 5, 6]
+        attempt: [1] # , 2, 3, 4, 5, 6]
     name: ${{ fromJson(matrix.db).name }} (${{ matrix.combination }})
     runs-on: ubuntu-latest
     services:
