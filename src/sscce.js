@@ -177,16 +177,19 @@ module.exports = async function() {
         try {
           await t.rollback();
         } catch (error) {
-          if (error.message.includes('Transaction cannot be rolled back because it has been finished with state:')) {
-            // Suppress
-          } else {
-            throw error;
-          }
+          console.log('suppressing error upon rollback attempt:', error);
+          // if (error.message.includes('Transaction cannot be rolled back because it has been finished with state:')) {
+          //   // Suppress
+          // } else {
+          //   throw error;
+          // }
         }
       }
 
       await tryRollback(t1);
       await tryRollback(t2);
+
+      console.log('rethrowing after rollbacks');
       throw error;
     }
 
