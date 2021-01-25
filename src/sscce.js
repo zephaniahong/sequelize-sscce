@@ -135,26 +135,46 @@ module.exports = async function() {
       console.log(info);
     }
 
-    await Promise.all([
-      (async () => {
-        executed('Send update query with t2');
-        await t2Jan.update({ awesome: false }, { transaction: t2 });
-        executed('Update query with t2 done');
-      })(),
-      (async () => {
-        await delay(500);
+    let stop = false;
+    let committingT1 = false;
+    let committingT2 = false;
 
-        executed('Send query to do something with t1');
-        await t1Jan.update({ awesome: true }, { transaction: t1 });
-        executed('Query to do something with t1 done');
+    try {
+      await Promise.all([
+        (async () => {
+          try {
+            executed('Send update query with t2');
+            await t2Jan.update({ awesome: false }, { transaction: t2 });
+            executed('Update query with t2 done');
+            executed('Send commit query with t2');
+            committingT2 = true;
+            await t2.commit();
+            executed('Commit query with t2 done');
+          } finally {
+            stop = true;
+          }
+        })(),
+        (async () => {
+          await delay(500);
+          if (stop) return;
 
-        await delay(500);
+          executed('Send query to do something with t1');
+          await t1Jan.update({ awesome: true }, { transaction: t1 });
+          executed('Query to do something with t1 done');
 
-        executed('Send commit query with t1');
-        await t1.commit();
-        executed('Commit query with t1 done');
-      })()
-    ]);
+          await delay(500);
+          if (stop) return;
+
+          executed('Send commit query with t1');
+          committingT1 = true;
+          await t1.commit();
+          executed('Commit query with t1 done');
+        })()
+      ]);
+    } catch (error) {
+      if (!committingT1) await t1.rollback();
+      if (!committingT2) await t2.rollback();
+    }
 
     expect(executionOrder).to.deep.equal([
       'Send update query with t2',
