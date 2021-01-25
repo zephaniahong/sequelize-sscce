@@ -213,6 +213,7 @@ module.exports = async function() {
       console.error('[[CAUGHT]]', error);
       if (error.message.includes('Deadlock found when trying to get lock; try restarting transaction')) {
         console.error('[[CAUGHT DEADLOCK - RETRYING ONCE]]', error);
+        await delay(1000);
         await mainTest();
       } else {
         throw error;
