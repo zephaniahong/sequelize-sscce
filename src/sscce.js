@@ -28,7 +28,7 @@ module.exports = async function() {
     }
   });
 
-  async function singleTest() {
+  async function mainTest() {
     const User = sequelize.define('user', {
       username: DataTypes.STRING,
       awesome: DataTypes.BOOLEAN
@@ -86,7 +86,7 @@ module.exports = async function() {
         // Started (failing): 61    (B)
         // Finished (failing): 66   (E)
         await t1Jan.update({ awesome: true }, { transaction: t1 });
-        await delay(2000);
+        await delay(500);
         t1CommitSpy();
 
         // Started (passing): 69    (F)
@@ -165,11 +165,24 @@ module.exports = async function() {
     ]);
   }
 
-  for (let i = 0; i < 300; i++) {
+  const deadlocked = [];
+
+  for (let i = 0; i < 60; i++) {
     console.log('### TEST ' + i);
 
-    await simplifiedTest();
+    try {
+      await mainTest();
+    } catch (error) {
+      console.error(error);
+      if (error.message.includes('Deadlock found when trying to get lock; try restarting transaction')) {
+        deadlocked.push(i);
+      } else {
+        throw error;
+      }
+    }
 
     await delay(10);
   }
+
+  console.log('[[DEADLOCKED]]', JSON.stringify(deadlocked));
 };
