@@ -203,24 +203,27 @@ module.exports = async function() {
     ]);
   }
 
-  const deadlocked = [];
-
-  for (let i = 0; i < 60; i++) {
+  let i = 0;
+  for (; i < 60; i++) {
     console.log('### TEST ' + i);
 
     try {
-      await simplifiedTest();
+      await mainTest();
     } catch (error) {
-      console.error(error);
+      console.error('[[CAUGHT]]', error);
       if (error.message.includes('Deadlock found when trying to get lock; try restarting transaction')) {
-        deadlocked.push(i);
+        console.error('[[CAUGHT DEADLOCK - RETRYING ONCE]]', error);
+        await mainTest();
       } else {
         throw error;
       }
+
+      console.log('[[ABORTING]]');
+      break;
     }
 
-    await delay(10);
+    await delay(100);
   }
 
-  console.log('[[DEADLOCKED]]', JSON.stringify(deadlocked));
+  console.log('[[OUTSIDE LOOP]] i:', i);
 };
