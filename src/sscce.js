@@ -172,8 +172,22 @@ module.exports = async function() {
         })()
       ]);
     } catch (error) {
-      if (!committingT1) await t1.rollback();
-      if (!committingT2) await t2.rollback();
+      // eslint-disable-next-line no-inner-declarations
+      async function tryRollback(t) {
+        try {
+          await t.rollback();
+        } catch (error) {
+          if (error.message.includes('Transaction cannot be rolled back because it has been finished with state: rollback')) {
+            // Suppress
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (!committingT1) await tryRollback(t1);
+      if (!committingT2) await tryRollback(t2);
+      throw error;
     }
 
     expect(executionOrder).to.deep.equal([
