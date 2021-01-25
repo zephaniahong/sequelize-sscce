@@ -135,25 +135,26 @@ module.exports = async function() {
       console.log(info);
     }
 
-    const t2JanUpdatePromise = (async () => {
-      executed('Send update query with t2');
-      await t2Jan.update({ awesome: false }, { transaction: t2 });
-      executed('Update query with t2 done');
-    })();
+    await Promise.all([
+      (async () => {
+        executed('Send update query with t2');
+        await t2Jan.update({ awesome: false }, { transaction: t2 });
+        executed('Update query with t2 done');
+      })(),
+      (async () => {
+        await delay(500);
 
-    await delay(500);
+        executed('Send query to do something with t1');
+        await t1Jan.update({ awesome: true }, { transaction: t1 });
+        executed('Query to do something with t1 done');
 
-    executed('Send query to do something with t1');
-    await t1Jan.update({ awesome: true }, { transaction: t1 });
-    executed('Query to do something with t1 done');
+        await delay(500);
 
-    await delay(500);
-
-    executed('Send commit query with t1');
-    await t1.commit();
-    executed('Commit query with t1 done');
-
-    await t2JanUpdatePromise; // Prevent JS race conditions
+        executed('Send commit query with t1');
+        await t1.commit();
+        executed('Commit query with t1 done');
+      })()
+    ]);
 
     expect(executionOrder).to.deep.equal([
       'Send update query with t2',
