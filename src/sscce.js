@@ -130,23 +130,28 @@ module.exports = async function() {
 
     const executionOrder = [];
 
+    function executed(info) {
+      executionOrder.push(info);
+      console.log(info);
+    }
+
     const t2JanUpdatePromise = (async () => {
-      executionOrder.push('Send update query with t2');
+      executed('Send update query with t2');
       await t2Jan.update({ awesome: false }, { transaction: t2 });
-      executionOrder.push('Update query with t2 done');
+      executed('Update query with t2 done');
     })();
 
     await delay(1000);
 
-    executionOrder.push('Send query to do something with t1');
+    executed('Send query to do something with t1');
     await t1Jan.update({ awesome: true }, { transaction: t1 });
-    executionOrder.push('Query to do something with t1 done');
+    executed('Query to do something with t1 done');
 
     await delay(1000);
 
-    executionOrder.push('Send commit query with t1');
+    executed('Send commit query with t1');
     await t1.commit();
-    executionOrder.push('Commit query with t1 done');
+    executed('Commit query with t1 done');
 
     await t2JanUpdatePromise; // Prevent JS race conditions
 
