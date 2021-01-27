@@ -9,7 +9,7 @@ else
   npm i --production; # Install faster
 fi
 
-npm i --save https://github.com/sequelize/sequelize/tarball/416a7ceef35c9841668005ee0d133c733188ffd8
+npm i --save https://github.com/sequelize/sequelize/tarball/7408b083d1ff9795f05f8acdebf241db64cf8aac
 
 if [ "$DIALECT" = "postgres" ]; then
   npm i pg@^7 pg-hstore@^2 pg-types@^2;
