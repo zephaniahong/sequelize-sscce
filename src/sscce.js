@@ -203,24 +203,67 @@ module.exports = async function() {
     ]);
   }
 
-  const deadlocked = [];
+  async function causeDeadlock() {
+    const User = sequelize.define('user', {
+      username: DataTypes.STRING,
+      awesome: DataTypes.BOOLEAN
+    }, { timestamps: false });
+
+    await sequelize.sync({ force: true });
+    const { id } = await User.create({ username: 'jan' });
+    const t1 = await sequelize.transaction();
+
+    // Set a shared mode lock on the row.
+    // Other sessions can read the row, but cannot modify it until t1 commits.
+    // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
+    const t1Jan = await User.findByPk(id, { lock: t1.LOCK.SHARE, transaction: t1 });
+    const t2 = await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+    const t2Jan = await User.findByPk(id, { transaction: t2 });
+
+    let stop = false;
+
+    try {
+      await Promise.all([
+        (async () => {
+          try {
+            await t2Jan.update({ awesome: false }, { transaction: t2 });
+            await t2.commit();
+          } finally {
+            stop = true;
+          }
+        })(),
+        (async () => {
+          await delay(500);
+          if (stop) return;
+
+          await t1Jan.update({ awesome: true }, { transaction: t1 });
+
+          await delay(500);
+          if (stop) return;
+
+          await t1.commit();
+        })()
+      ]);
+    } catch (error) {
+      try {
+        await t1.rollback();
+      } catch (_) {} // eslint-disable-line no-empty
+      try {
+        await t2.rollback();
+      } catch (_) {} // eslint-disable-line no-empty
+      throw error;
+    }
+  }
 
   for (let i = 0; i < 60; i++) {
     console.log('### TEST ' + i);
 
-    try {
-      await simplifiedTest();
-    } catch (error) {
-      console.error(error);
-      if (error.message.includes('Deadlock found when trying to get lock; try restarting transaction')) {
-        deadlocked.push(i);
-      } else {
-        throw error;
-      }
-    }
+    await expect(
+      causeDeadlock()
+    ).to.be.eventually.rejectedWith('Deadlock found when trying to get lock; try restarting transaction');
 
     await delay(10);
   }
 
-  console.log('[[DEADLOCKED]]', JSON.stringify(deadlocked));
+  expect(delay(1000)).to.be.eventually.rejectedWith('Deadlock found when trying to get lock; try restarting transaction');
 };
