@@ -222,37 +222,27 @@ module.exports = async function() {
 
     let stop = false;
 
-    try {
-      await Promise.all([
-        (async () => {
-          try {
-            await t2Jan.update({ awesome: false }, { transaction: t2 });
-            await t2.commit();
-          } finally {
-            stop = true;
-          }
-        })(),
-        (async () => {
-          await delay(500);
-          if (stop) return;
+    await Promise.all([
+      (async () => {
+        try {
+          await t2Jan.update({ awesome: false }, { transaction: t2 });
+          await t2.commit();
+        } finally {
+          stop = true;
+        }
+      })(),
+      (async () => {
+        await delay(500);
+        if (stop) return;
 
-          await t1Jan.update({ awesome: true }, { transaction: t1 });
+        await t1Jan.update({ awesome: true }, { transaction: t1 });
 
-          await delay(500);
-          if (stop) return;
+        await delay(500);
+        if (stop) return;
 
-          await t1.commit();
-        })()
-      ]);
-    } catch (error) {
-      try {
-        await t1.rollback();
-      } catch (_) {} // eslint-disable-line no-empty
-      try {
-        await t2.rollback();
-      } catch (_) {} // eslint-disable-line no-empty
-      throw error;
-    }
+        await t1.commit();
+      })()
+    ]);
   }
 
   for (let i = 0; i < 20; i++) {
