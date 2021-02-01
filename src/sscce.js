@@ -255,7 +255,7 @@ module.exports = async function() {
     }
   }
 
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 20; i++) {
     console.log('### TEST ' + i);
 
     await expect(
@@ -264,6 +264,4 @@ module.exports = async function() {
 
     await delay(10);
   }
-
-  expect(delay(1000)).to.be.eventually.rejectedWith('Deadlock found when trying to get lock; try restarting transaction');
 };
