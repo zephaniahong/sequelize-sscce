@@ -30,7 +30,7 @@ module.exports = async function() {
   
   await sequelize.sync();
 
-  log(await User.create({ point }));
+  log(await Foo.create({ point }));
 
   log(await Foo.findOne());
 };
