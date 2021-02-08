@@ -23,6 +23,8 @@ module.exports = async function() {
       timestamps: false // For less clutter in the SSCCE
     }
   });
+  
+  await sequelize.query(`CREATE EXTENSION IF NOT EXISTS "postgis"`);
 
   const Foo = sequelize.define('Foo', { point: DataTypes.GEOMETRY });
   
