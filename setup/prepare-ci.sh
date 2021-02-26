@@ -9,18 +9,7 @@ else
   npm i --production; # Install faster
 fi
 
-if [ "$FLAKY_CASE" = "a" ]; then
-  echo 'flaky case a'
-  npm i --save https://github.com/sequelize/sequelize/tarball/f841f1c7f48bacfe299053767bb5524574de809f;
-else
-  if [ $FLAKY_CASE = "b" ]; then
-    echo 'flaky case b'
-    npm i --save https://github.com/sequelize/sequelize/tarball/253cda0167301c70de7485d713c820cbb7a37624;
-  else
-    echo 'flaky case c'
-    npm i --save https://github.com/sequelize/sequelize/tarball/36510e7aaf62b1dc45f96ea3bfc4007b031917dd;
-  fi
-fi
+npm i --save https://github.com/sequelize/sequelize/tarball/383ce78b8e3e337eaa3826029cae5c4a217898f4;
 
 if [ "$DIALECT" = "postgres" ]; then
   npm i pg@^7 pg-hstore@^2 pg-types@^2;

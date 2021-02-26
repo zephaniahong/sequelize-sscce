@@ -15,8 +15,11 @@ jobs:
           - '{ name: "MySQL 5.7", image: "mysql:5.7", dialect: "mysql" }'
           # - '{ name: "MariaDB 10.3", image: "mariadb:10.3", dialect: "mariadb" }'
         combination: ['v6']
-        # flaky_case: ['a', 'b', 'c']
-        flaky_case: ['c']
+        CRAZY_DEADLOCK_TESTING_A: ['1', '']
+        CRAZY_DEADLOCK_TESTING_B: ['1', '']
+        CRAZY_DEADLOCK_TESTING_C: ['1', '']
+        CRAZY_DEADLOCK_TESTING_R1: ['1', '']
+        CRAZY_DEADLOCK_TESTING_R2: ['1', '']
         attempt: [1, 2, 3]
     name: ${{ fromJson(matrix.db).name }} (${{ matrix.combination }})
     runs-on: ubuntu-latest
@@ -34,7 +37,11 @@ jobs:
     env:
       DIALECT: ${{ fromJson(matrix.db).dialect }}
       CI_COMBINATION: ${{ matrix.combination }}
-      FLAKY_CASE: ${{ matrix.flaky_case }}
+      CRAZY_DEADLOCK_TESTING_A: ${{ matrix.CRAZY_DEADLOCK_TESTING_A }}
+      CRAZY_DEADLOCK_TESTING_B: ${{ matrix.CRAZY_DEADLOCK_TESTING_B }}
+      CRAZY_DEADLOCK_TESTING_C: ${{ matrix.CRAZY_DEADLOCK_TESTING_C }}
+      CRAZY_DEADLOCK_TESTING_R1: ${{ matrix.CRAZY_DEADLOCK_TESTING_R1 }}
+      CRAZY_DEADLOCK_TESTING_R2: ${{ matrix.CRAZY_DEADLOCK_TESTING_R2 }}
       DEBUG: 'sequelize:*'
     steps:
       - run: mysql --host 127.0.0.1 --port 3306 -uroot -psequelize_test -e "GRANT ALL ON *.* TO 'sequelize_test'@'%' with grant option; FLUSH PRIVILEGES;"

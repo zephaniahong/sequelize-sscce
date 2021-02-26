@@ -20,6 +20,12 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 module.exports = async function() {
   if (process.env.DIALECT !== "mysql" && process.env.DIALECT !== "mariadb") return;
 
+  console.log('CRAZY_DEADLOCK_TESTING_A ', !!process.env.CRAZY_DEADLOCK_TESTING_A);
+  console.log('CRAZY_DEADLOCK_TESTING_B ', !!process.env.CRAZY_DEADLOCK_TESTING_B);
+  console.log('CRAZY_DEADLOCK_TESTING_C ', !!process.env.CRAZY_DEADLOCK_TESTING_C);
+  console.log('CRAZY_DEADLOCK_TESTING_R1', !!process.env.CRAZY_DEADLOCK_TESTING_R1);
+  console.log('CRAZY_DEADLOCK_TESTING_R2', !!process.env.CRAZY_DEADLOCK_TESTING_R2);
+
   const sequelize = createSequelizeInstance({
     logQueryParameters: true,
     benchmark: true,
@@ -222,35 +228,55 @@ module.exports = async function() {
 
     let stop = false;
 
-    await Promise.all([
-      (async () => {
+    try {
+      await Promise.all([
+        (async () => {
+          try {
+            await t2Jan.update({ awesome: false }, { transaction: t2 });
+            await t2.commit();
+          } finally {
+            stop = true;
+          }
+        })(),
+        (async () => {
+          await delay(500);
+          if (stop) return;
+
+          await t1Jan.update({ awesome: true }, { transaction: t1 });
+
+          await delay(500);
+          if (stop) return;
+
+          await t1.commit();
+        })()
+      ]);
+    } catch (error) {
+      if (process.env.CRAZY_DEADLOCK_TESTING_R1) {
         try {
-          await t2Jan.update({ awesome: false }, { transaction: t2 });
-          await t2.commit();
-        } finally {
-          stop = true;
-        }
-      })(),
-      (async () => {
-        await delay(500);
-        if (stop) return;
-
-        await t1Jan.update({ awesome: true }, { transaction: t1 });
-
-        await delay(500);
-        if (stop) return;
-
-        await t1.commit();
-      })()
-    ]);
+          await t1.rollback();
+        } catch (_) {} // eslint-disable-line no-empty
+      }
+      if (process.env.CRAZY_DEADLOCK_TESTING_R2) {
+        try {
+          await t2.rollback();
+        } catch (_) {} // eslint-disable-line no-empty
+      }
+      throw error;
+    }
   }
 
   for (let i = 0; i < 20; i++) {
     console.log('### TEST ' + i);
 
-    await expect(
-      causeDeadlock()
-    ).to.be.eventually.rejectedWith('Deadlock found when trying to get lock; try restarting transaction');
+    let errorMessage = "n0thing h4ppen3d";
+
+    try {
+      await causeDeadlock();
+    } catch (error) {
+      errorMessage = error.message;
+    }
+
+    expect(errorMessage).to.equal('Deadlock found when trying to get lock; try restarting transaction');
 
     await delay(10);
   }
