@@ -228,33 +228,53 @@ module.exports = async function() {
 
     let stop = false;
 
+    const executionHistory = [];
+
     try {
+      executionHistory.push('a1');
       await Promise.all([
         (async () => {
           try {
+            executionHistory.push('a2');
             await t2Jan.update({ awesome: false }, { transaction: t2 });
+            executionHistory.push('a3');
             await t2.commit();
+            executionHistory.push('a4');
           } finally {
+            executionHistory.push('a5');
             stop = true;
           }
         })(),
         (async () => {
+          executionHistory.push('a6');
           await delay(500);
+          executionHistory.push('a7');
           if (stop) return;
+          executionHistory.push('a8');
 
           await t1Jan.update({ awesome: true }, { transaction: t1 });
+          executionHistory.push('a9');
 
           await delay(500);
+          executionHistory.push('a10');
           if (stop) return;
+          executionHistory.push('a11');
 
           await t1.commit();
+          executionHistory.push('a12');
         })()
       ]);
+      executionHistory.push('a13');
+      console.log('EXECUTION HISTORY:', executionHistory.join(' '));
     } catch (error) {
+      console.log('EXECUTION HISTORY:', executionHistory.join(' '));
+      console.log('caughterror', error);
       if (process.env.CRAZY_DEADLOCK_TESTING_R1) {
         try {
           await t1.rollback();
-        } catch (_) {} // eslint-disable-line no-empty
+        } catch (t1rollbackerror) {
+          console.log(`t1rollbackerror (${t1rollbackerror.name})`, t1rollbackerror);
+        }
       }
       if (process.env.CRAZY_DEADLOCK_TESTING_R2) {
         try {
@@ -270,10 +290,18 @@ module.exports = async function() {
 
     let errorMessage = "n0thing h4ppen3d";
 
+    let time = Date.now();
+
+    console.log('[[[starting causeDeadlock()]]]');
+
     try {
       await causeDeadlock();
+      time = Date.now() - time;
+      console.log(`[[[succeeded in ${time}ms]]]`);
     } catch (error) {
+      time = Date.now() - time;
       errorMessage = error.message;
+      console.log(`[[[errored in ${time}ms]]] Error name: ${error.name} || Error message: ${error.message} ~~`);
     }
 
     expect(errorMessage).to.equal('Deadlock found when trying to get lock; try restarting transaction');
