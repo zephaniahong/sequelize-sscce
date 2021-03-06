@@ -25,6 +25,7 @@ module.exports = async function() {
   console.log('CRAZY_DEADLOCK_TESTING_C ', !!process.env.CRAZY_DEADLOCK_TESTING_C);
   console.log('CRAZY_DEADLOCK_TESTING_R1', !!process.env.CRAZY_DEADLOCK_TESTING_R1);
   console.log('CRAZY_DEADLOCK_TESTING_R2', !!process.env.CRAZY_DEADLOCK_TESTING_R2);
+  console.log('CRAZY_DEADLOCK_TESTING_TRYCOMMITT1', !!process.env.CRAZY_DEADLOCK_TESTING_TRYCOMMITT1);
 
   const sequelize = createSequelizeInstance({
     logQueryParameters: true,
