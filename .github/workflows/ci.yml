@@ -20,6 +20,7 @@ jobs:
         CRAZY_DEADLOCK_TESTING_C: ['1', '']
         CRAZY_DEADLOCK_TESTING_R1: ['1']
         CRAZY_DEADLOCK_TESTING_R2: ['']
+        CRAZY_DEADLOCK_TESTING_TRYCOMMITT1: ['1', '']
         attempt: [1]
     name: ${{ fromJson(matrix.db).name }} (${{ matrix.combination }})
     runs-on: ubuntu-latest
@@ -42,6 +43,7 @@ jobs:
       CRAZY_DEADLOCK_TESTING_C: ${{ matrix.CRAZY_DEADLOCK_TESTING_C }}
       CRAZY_DEADLOCK_TESTING_R1: ${{ matrix.CRAZY_DEADLOCK_TESTING_R1 }}
       CRAZY_DEADLOCK_TESTING_R2: ${{ matrix.CRAZY_DEADLOCK_TESTING_R2 }}
+      CRAZY_DEADLOCK_TESTING_TRYCOMMITT1: ${{ matrix.CRAZY_DEADLOCK_TESTING_TRYCOMMITT1 }}
       DEBUG: 'sequelize:*'
     steps:
       - run: mysql --host 127.0.0.1 --port 3306 -uroot -psequelize_test -e "GRANT ALL ON *.* TO 'sequelize_test'@'%' with grant option; FLUSH PRIVILEGES;"

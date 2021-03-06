@@ -257,25 +257,38 @@ module.exports = async function() {
 
           await delay(500);
           executionHistory.push('a10');
-          // if (stop) return;
+          if (stop) return;
           executionHistory.push('a11');
 
-          try {
-            await t1.commit();
-          } finally {
-            console.log('hahaha1 EXECUTION HISTORY:', executionHistory.join(' '));
-            await delay(4000);
-            console.log('hahaha2 EXECUTION HISTORY:', executionHistory.join(' '));
+
+          if (process.env.CRAZY_DEADLOCK_TESTING_TRYCOMMITT1) {
+            try {
+              executionHistory.push('a12');
+              await t1.commit();
+              executionHistory.push('a13');
+            } catch (t1commiterror) {
+              executionHistory.push(`a14[${t1commiterror.name}][${t1commiterror.message}]`);
+            } finally {
+              console.log('EXECUTION HISTORY (1):', executionHistory.join(' '));
+              await delay(4000);
+              console.log('EXECUTION HISTORY (2):', executionHistory.join(' '));
+            }
+          } else {
+            executionHistory.push('a15');
           }
-          executionHistory.push('a12');
         })()
       ]);
-      executionHistory.push('a13');
-      console.log('EXECUTION HISTORY:', executionHistory.join(' '));
+      executionHistory.push('a16');
+      console.log('EXECUTION HISTORY (3):', executionHistory.join(' '));
     } catch (error) {
-      console.log('EXECUTION HISTORY:', executionHistory.join(' '));
+      console.log('EXECUTION HISTORY (4):', executionHistory.join(' '));
+      console.log('T1STATUS (A)', t1.finished);
+      console.log('T2STATUS (A)', t2.finished);
       await delay(4000);
-      console.log('EXECUTION HISTORY:', executionHistory.join(' '));
+      console.log('EXECUTION HISTORY (5):', executionHistory.join(' '));
+      console.log('T1STATUS (B)', t1.finished);
+      console.log('T2STATUS (B)', t2.finished);
+
       console.log('caughterror', error);
       if (process.env.CRAZY_DEADLOCK_TESTING_R1) {
         try {
