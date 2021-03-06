@@ -17,7 +17,7 @@ jobs:
         combination: ['v6']
         CRAZY_DEADLOCK_TESTING_A: ['']
         CRAZY_DEADLOCK_TESTING_B: ['']
-        CRAZY_DEADLOCK_TESTING_C: ['1']
+        CRAZY_DEADLOCK_TESTING_C: ['1', '']
         CRAZY_DEADLOCK_TESTING_R1: ['1']
         CRAZY_DEADLOCK_TESTING_R2: ['']
         attempt: [1]
