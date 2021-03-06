@@ -294,7 +294,9 @@ module.exports = async function() {
     }
   }
 
-  console.log('see here', await sequelize.query("SHOW VARIABLES LIKE 'connect_timeout'"));
+  console.log('connect_timeout', await sequelize.query("SHOW VARIABLES LIKE 'connect_timeout'"));
+  console.log('wait_timeout', await sequelize.query("SHOW VARIABLES LIKE 'wait_timeout'"));
+  console.log('NET_read_timeout', await sequelize.query("SHOW VARIABLES LIKE 'NET_read_timeout'"));
 
   for (let i = 0; i < 20; i++) {
     console.log('### TEST ' + i);
