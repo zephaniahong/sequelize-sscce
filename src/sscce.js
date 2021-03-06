@@ -257,10 +257,16 @@ module.exports = async function() {
 
           await delay(500);
           executionHistory.push('a10');
-          if (stop) return;
+          // if (stop) return;
           executionHistory.push('a11');
 
-          await t1.commit();
+          try {
+            await t1.commit();
+          } finally {
+            console.log('hahaha1 EXECUTION HISTORY:', executionHistory.join(' '));
+            await delay(4000);
+            console.log('hahaha2 EXECUTION HISTORY:', executionHistory.join(' '));
+          }
           executionHistory.push('a12');
         })()
       ]);
@@ -268,12 +274,13 @@ module.exports = async function() {
       console.log('EXECUTION HISTORY:', executionHistory.join(' '));
     } catch (error) {
       console.log('EXECUTION HISTORY:', executionHistory.join(' '));
-      await delay(2000);
+      await delay(4000);
       console.log('EXECUTION HISTORY:', executionHistory.join(' '));
       console.log('caughterror', error);
       if (process.env.CRAZY_DEADLOCK_TESTING_R1) {
         try {
           await t1.rollback();
+          console.log('t1rollbackok');
         } catch (t1rollbackerror) {
           console.log(`t1rollbackerror (${t1rollbackerror.name})`, t1rollbackerror);
         }
