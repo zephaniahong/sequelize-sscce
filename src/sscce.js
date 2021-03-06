@@ -257,29 +257,26 @@ module.exports = async function() {
           executionHistory.push('a9');
 
           await delay(500);
-          executionHistory.push('a10');
-          if (stop) return;
-          executionHistory.push('a11');
-
+          executionHistory.push(`a10[stop=${stop}]`);
 
           if (process.env.CRAZY_DEADLOCK_TESTING_TRYCOMMITT1) {
             try {
-              executionHistory.push('a12');
+              executionHistory.push('a11');
               await t1.commit();
-              executionHistory.push('a13');
+              executionHistory.push('a12');
             } catch (t1commiterror) {
-              executionHistory.push(`a14[${t1commiterror.name}][${t1commiterror.message}]`);
+              executionHistory.push(`a13[${t1commiterror.name}][${t1commiterror.message}]`);
             } finally {
               console.log('EXECUTION HISTORY (1):', executionHistory.join(' '));
               await delay(4000);
               console.log('EXECUTION HISTORY (2):', executionHistory.join(' '));
             }
           } else {
-            executionHistory.push('a15');
+            executionHistory.push('a14');
           }
         })()
       ]);
-      executionHistory.push('a16');
+      executionHistory.push('a15');
       console.log('EXECUTION HISTORY (3):', executionHistory.join(' '));
     } catch (error) {
       console.log('EXECUTION HISTORY (4):', executionHistory.join(' '));
