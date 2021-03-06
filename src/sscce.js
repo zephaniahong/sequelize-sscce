@@ -268,6 +268,8 @@ module.exports = async function() {
       console.log('EXECUTION HISTORY:', executionHistory.join(' '));
     } catch (error) {
       console.log('EXECUTION HISTORY:', executionHistory.join(' '));
+      await delay(2000);
+      console.log('EXECUTION HISTORY:', executionHistory.join(' '));
       console.log('caughterror', error);
       if (process.env.CRAZY_DEADLOCK_TESTING_R1) {
         try {
