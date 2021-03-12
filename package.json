@@ -12,6 +12,7 @@
     "chai-as-promised": "^7",
     "chai-datetime": "^1",
     "chalk": "^2",
+    "cls-hooked": "^4",
     "cross-env": "^5",
     "fs-jetpack": "^2",
     "is-plain-object": "^3",
