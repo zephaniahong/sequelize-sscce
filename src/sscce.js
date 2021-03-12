@@ -33,4 +33,12 @@ module.exports = async function() {
 
   log(await Foo.create({ name: 'foo' }));
   expect(await Foo.count()).to.equal(1);
+  
+  await sequelize.transaction(async () => {
+		await Foo.create({ name: 'Anti-mage' });
+		await Foo.create({ name: 'Barathrum' });
+		await Foo.create({ name: 'Crystal Maiden', transaction: null });
+		await Foo.create({ name: 'Dark Seer' });
+	});
+	log(await Foo.findAll());
 };
