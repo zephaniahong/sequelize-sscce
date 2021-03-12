@@ -41,8 +41,9 @@ module.exports = async function() {
   await sequelize.transaction(async () => {
 		await Foo.create({ name: 'Anti-mage' });
 		await Foo.create({ name: 'Barathrum' });
-		await Foo.create({ name: 'Crystal Maiden', transaction: null });
+		await Foo.create({ name: 'Crystal Maiden' }, { transaction: null });
 		await Foo.create({ name: 'Dark Seer' });
+    await Foo.create({ name: 'Earthshaker' }, { transaction: undefined });
 	});
 	log(await Foo.findAll());
 };
