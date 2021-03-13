@@ -227,6 +227,10 @@ module.exports = async function() {
         console.log(`### Execution ${i+1} of \`${f.name}\` finished after ${time} ms successfully`);
       }
 
+      if (error) {
+        throw error;
+      }
+
       await delay(10);
     }
   }
