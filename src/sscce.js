@@ -15,17 +15,13 @@ const sinon = require('sinon');
 const { expect } = require('chai');
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
+const pSettle = require('p-settle');
 
 // Your SSCCE goes inside this function.
 module.exports = async function() {
   if (process.env.DIALECT !== "mysql" && process.env.DIALECT !== "mariadb") return;
 
-  console.log('CRAZY_DEADLOCK_TESTING_A ', !!process.env.CRAZY_DEADLOCK_TESTING_A);
-  console.log('CRAZY_DEADLOCK_TESTING_B ', !!process.env.CRAZY_DEADLOCK_TESTING_B);
-  console.log('CRAZY_DEADLOCK_TESTING_C ', !!process.env.CRAZY_DEADLOCK_TESTING_C);
-  console.log('CRAZY_DEADLOCK_TESTING_R1', !!process.env.CRAZY_DEADLOCK_TESTING_R1);
-  console.log('CRAZY_DEADLOCK_TESTING_R2', !!process.env.CRAZY_DEADLOCK_TESTING_R2);
-  console.log('CRAZY_DEADLOCK_TESTING_TRYCOMMITT1', !!process.env.CRAZY_DEADLOCK_TESTING_TRYCOMMITT1);
+  console.log('CRAZY_DEADLOCK_TESTING_Z ', !!process.env.CRAZY_DEADLOCK_TESTING_Z);
 
   const sequelize = createSequelizeInstance({
     logQueryParameters: true,
@@ -35,83 +31,7 @@ module.exports = async function() {
     }
   });
 
-  async function mainTest() {
-    const User = sequelize.define('user', {
-      username: DataTypes.STRING,
-      awesome: DataTypes.BOOLEAN
-    }, { timestamps: false });
-
-    const t1CommitSpy = sinon.spy();
-    const t2FindSpy = sinon.spy();
-    const t2UpdateSpy = sinon.spy();
-
-    await sequelize.sync({ force: true });
-    const user = await User.create({ username: 'jan' });
-
-    const t1 = await sequelize.transaction();
-
-    // Set a shared mode lock on the row.
-    // Other sessions can read the row, but cannot modify it until t1 commits.
-    // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
-    const t1Jan = await User.findByPk(user.id, {
-      lock: t1.LOCK.SHARE,
-      transaction: t1
-    });
-
-    const t2 = await sequelize.transaction({
-      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
-    });
-
-    await Promise.all([
-      (async () => {
-        // Started (passing): 60    (A)
-        // Finished (passing): 62   (C)
-        // Started (failing): 60    (A)
-        // Finished (failing): 62   (C)
-        const t2Jan = await User.findByPk(user.id, {
-          transaction: t2
-        });
-
-        t2FindSpy();
-
-        // Started (passing): 65    (D)
-        // Finished (passing): 70   (G)
-        // Started (failing): 65    (D)
-        // Finished (failing): WOULD RUN BUT DEADLOCK
-        await t2Jan.update({ awesome: false }, { transaction: t2 });
-        t2UpdateSpy();
-
-        // Started (passing): 71    (H)
-        // Finished (passing): 76   (J)
-        // Started (failing): ??    (?)
-        // Finished (failing): ??   (?)
-        await t2.commit();
-      })(),
-      (async () => {
-        // Started (passing): 61    (B)
-        // Finished (passing): 66   (E)
-        // Started (failing): 61    (B)
-        // Finished (failing): 66   (E)
-        await t1Jan.update({ awesome: true }, { transaction: t1 });
-        await delay(500);
-        t1CommitSpy();
-
-        // Started (passing): 69    (F)
-        // Finished (passing): 74   (I)
-        // Started (failing): ??    (?)
-        // Finished (failing): ??   (?)
-        await t1.commit();
-      })()
-    ]);
-
-    // (t2) find call should have returned before (t1) commit
-    expect(t2FindSpy).to.have.been.calledBefore(t1CommitSpy);
-
-    // But (t2) update call should not happen before (t1) commit
-    expect(t2UpdateSpy).to.have.been.calledAfter(t1CommitSpy);
-  }
-
-  async function simplifiedTest() {
+  async function verifySelectLockInShareMode() {
     const User = sequelize.define('user', {
       username: DataTypes.STRING,
       awesome: DataTypes.BOOLEAN
@@ -119,217 +39,198 @@ module.exports = async function() {
 
     await sequelize.sync({ force: true });
     const { id } = await User.create({ username: 'jan' });
-    const t1 = await sequelize.transaction();
 
-    // Set a shared mode lock on the row.
-    // Other sessions can read the row, but cannot modify it until t1 commits.
+    // First, we start a transaction T1 and perform a SELECT with it using the `LOCK.SHARE` mode (setting a shared mode lock on the row).
+    // This will cause other sessions to be able to read the row but not modify it.
+    // So, if another transaction tries to update those same rows, it will wait until T1 commits (or rolls back).
     // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
-    const t1Jan = await User.findByPk(id, {
-      lock: t1.LOCK.SHARE,
-      transaction: t1
-    });
-
-    const t2 = await sequelize.transaction({
-      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED
-    });
-
-    const t2Jan = await User.findByPk(id, { transaction: t2 });
-
-    const executionOrder = [];
-
-    function executed(info) {
-      executionOrder.push(info);
-      console.log(info);
-    }
-
-    let stop = false;
-    let committingT1 = false;
-    let committingT2 = false;
-
-    try {
-      await Promise.all([
-        (async () => {
-          try {
-            executed('Send update query with t2');
-            await t2Jan.update({ awesome: false }, { transaction: t2 });
-            executed('Update query with t2 done');
-            executed('Send commit query with t2');
-            committingT2 = true;
-            await t2.commit();
-            executed('Commit query with t2 done');
-          } finally {
-            stop = true;
-          }
-        })(),
-        (async () => {
-          await delay(500);
-          if (stop) return;
-
-          executed('Send query to do something with t1');
-          await t1Jan.update({ awesome: true }, { transaction: t1 });
-          executed('Query to do something with t1 done');
-
-          await delay(500);
-          if (stop) return;
-
-          executed('Send commit query with t1');
-          committingT1 = true;
-          await t1.commit();
-          executed('Commit query with t1 done');
-        })()
-      ]);
-    } catch (error) {
-      // eslint-disable-next-line no-inner-declarations
-      async function tryRollback(t) {
-        try {
-          await t.rollback();
-        } catch (error) {
-          console.log('suppressing error upon rollback attempt:', error);
-          // if (error.message.includes('Transaction cannot be rolled back because it has been finished with state:')) {
-          //   // Suppress
-          // } else {
-          //   throw error;
-          // }
-        }
-      }
-
-      await tryRollback(t1);
-      await tryRollback(t2);
-
-      console.log('rethrowing after rollbacks');
-      throw error;
-    }
-
-    expect(executionOrder).to.deep.equal([
-      'Send update query with t2',
-      'Send query to do something with t1',
-      'Query to do something with t1 done',
-      'Send commit query with t1',
-      'Commit query with t1 done',
-      'Update query with t2 done'
-    ]);
-  }
-
-  async function causeDeadlock() {
-    const User = sequelize.define('user', {
-      username: DataTypes.STRING,
-      awesome: DataTypes.BOOLEAN
-    }, { timestamps: false });
-
-    await sequelize.sync({ force: true });
-    const { id } = await User.create({ username: 'jan' });
     const t1 = await sequelize.transaction();
-
-    // Set a shared mode lock on the row.
-    // Other sessions can read the row, but cannot modify it until t1 commits.
-    // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
     const t1Jan = await User.findByPk(id, { lock: t1.LOCK.SHARE, transaction: t1 });
+
+    // Then we start another transaction T2 and see that it can indeed read the same row.
     const t2 = await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
     const t2Jan = await User.findByPk(id, { transaction: t2 });
 
-    let stop = false;
-
-    const executionHistory = [];
-
-    try {
-      executionHistory.push('a1');
-      await Promise.all([
-        (async () => {
-          try {
-            executionHistory.push('a2');
-            await t2Jan.update({ awesome: false }, { transaction: t2 });
-            executionHistory.push('a3');
-            await t2.commit();
-            executionHistory.push('a4');
-          } finally {
-            executionHistory.push('a5');
-            stop = true;
-          }
-        })(),
-        (async () => {
-          executionHistory.push('a6');
-          await delay(500);
-          executionHistory.push('a7');
-          if (stop) return;
-          executionHistory.push('a8');
-
-          await t1Jan.update({ awesome: true }, { transaction: t1 });
-          executionHistory.push('a9');
-
-          await delay(500);
-          executionHistory.push(`a10[stop=${stop}]`);
-
-          if (process.env.CRAZY_DEADLOCK_TESTING_TRYCOMMITT1) {
-            try {
-              executionHistory.push('a11');
-              await t1.commit();
-              executionHistory.push('a12');
-            } catch (t1commiterror) {
-              executionHistory.push(`a13[${t1commiterror.name}][${t1commiterror.message}]`);
-            } finally {
-              console.log('EXECUTION HISTORY (1):', executionHistory.join(' '));
-              await delay(4000);
-              console.log('EXECUTION HISTORY (2):', executionHistory.join(' '));
-            }
-          } else {
-            executionHistory.push('a14');
-          }
-        })()
-      ]);
-      executionHistory.push('a15');
-      console.log('EXECUTION HISTORY (3):', executionHistory.join(' '));
-    } catch (error) {
-      console.log('EXECUTION HISTORY (4):', executionHistory.join(' '));
-      console.log('T1STATUS (A)', t1.finished);
-      console.log('T2STATUS (A)', t2.finished);
-      await delay(4000);
-      console.log('EXECUTION HISTORY (5):', executionHistory.join(' '));
-      console.log('T1STATUS (B)', t1.finished);
-      console.log('T2STATUS (B)', t2.finished);
-
-      console.log('caughterror', error);
-      if (process.env.CRAZY_DEADLOCK_TESTING_R1) {
+    // Then, we want to see that an attempt to update that row from T2 will be queued until T1 commits.
+    const executionOrder = [];
+    const [t2AttemptData, t1AttemptData] = await pSettle([
+      (async () => {
         try {
-          await t1.rollback();
-          console.log('t1rollbackok');
-        } catch (t1rollbackerror) {
-          console.log(`t1rollbackerror (${t1rollbackerror.name})`, t1rollbackerror);
+          executionOrder.push('Begin attempt to update via T2');
+          await t2Jan.update({ awesome: false }, { transaction: t2 });
+          executionOrder.push('Done updating via T2');
+        } catch (error) {
+          executionOrder.push('Failed to update via T2'); // Shouldn't happen
+          throw error;
         }
-      }
-      if (process.env.CRAZY_DEADLOCK_TESTING_R2) {
+
         try {
-          await t2.rollback();
-        } catch (_) {} // eslint-disable-line no-empty
+          executionOrder.push('Attempting to commit T2');
+          await t2.commit();
+          executionOrder.push('Done committing T2');
+        } catch {
+          executionOrder.push('Failed to commit T2'); // Shouldn't happen
+        }
+      })(),
+      (async () => {
+        await delay(100);
+
+        try {
+          executionOrder.push('Begin attempt to read via T1');
+          await User.findAll({ transaction: t1 });
+          executionOrder.push('Done reading via T1');
+        } catch (error) {
+          executionOrder.push('Failed to read via T1'); // Shouldn't happen
+          throw error;
+        }
+
+        await delay(100);
+
+        try {
+          executionOrder.push('Attempting to commit T1');
+          await t1.commit();
+          executionOrder.push('Done committing T1');
+        } catch {
+          executionOrder.push('Failed to commit T1'); // Shouldn't happen
+        }
+      })()
+    ]);
+
+    expect(t1AttemptData.isFulfilled).to.be.true;
+    expect(t2AttemptData.isFulfilled).to.be.true;
+    expect(t1.finished).to.equal('commit');
+    expect(t2.finished).to.equal('commit');
+    expect(executionOrder).to.deep.equal([
+      'Begin attempt to update via T2',
+      'Begin attempt to read via T1',
+      'Done reading via T1',
+      'Attempting to commit T1',
+      'Done committing T1',
+      'Done updating via T2',
+      'Attempting to commit T2',
+      'Done committing T2'
+    ]);
+  }
+
+  async function verifyDeadlock() {
+    const User = sequelize.define('user', {
+      username: DataTypes.STRING,
+      awesome: DataTypes.BOOLEAN
+    }, { timestamps: false });
+
+    await sequelize.sync({ force: true });
+    const { id } = await User.create({ username: 'jan' });
+
+    // First, we start a transaction T1 and perform a SELECT with it using the `LOCK.SHARE` mode (setting a shared mode lock on the row).
+    // This will cause other sessions to be able to read the row but not modify it.
+    // So, if another transaction tries to update those same rows, it will wait until T1 commits (or rolls back).
+    // https://dev.mysql.com/doc/refman/5.7/en/innodb-locking-reads.html
+    const t1 = await sequelize.transaction();
+    const t1Jan = await User.findByPk(id, { lock: t1.LOCK.SHARE, transaction: t1 });
+
+    // Then we start another transaction T2 and see that it can indeed read the same row.
+    const t2 = await sequelize.transaction({ isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED });
+    const t2Jan = await User.findByPk(id, { transaction: t2 });
+
+    // Then, we want to see that an attempt to update that row from T2 will be queued until T1 commits.
+    // However, before commiting T1 we will also perform an update via T1 on the same rows.
+    // This should cause T2 to notice that it can't function anymore, so it detects a deadlock and automatically rolls itself back (and throws an error).
+    // Meanwhile, T1 should still be ok.
+    const executionOrder = [];
+    const [t2AttemptData, t1AttemptData] = await pSettle([
+      (async () => {
+        try {
+          executionOrder.push('Begin attempt to update via T2');
+          await t2Jan.update({ awesome: false }, { transaction: t2 });
+          executionOrder.push('Done updating via T2'); // Shouldn't happen
+        } catch (error) {
+          executionOrder.push('Failed to update via T2');
+          throw error;
+        }
+
+        try {
+          // We shouldn't reach this point, but if we do, let's at least commit the transaction
+          // to avoid forever occupying one connection of the pool with a pending transaction.
+          executionOrder.push('Attempting to commit T2');
+          await t2.commit();
+          executionOrder.push('Done committing T2');
+        } catch {
+          executionOrder.push('Failed to commit T2');
+        }
+      })(),
+      (async () => {
+        await delay(100);
+
+        try {
+          executionOrder.push('Begin attempt to update via T1');
+          await t1Jan.update({ awesome: true }, { transaction: t1 });
+          executionOrder.push('Done updating via T1');
+        } catch (error) {
+          executionOrder.push('Failed to update via T1'); // Shouldn't happen
+          throw error;
+        }
+
+        await delay(100);
+
+        try {
+          executionOrder.push('Attempting to commit T1');
+          await t1.commit();
+          executionOrder.push('Done committing T1');
+        } catch {
+          executionOrder.push('Failed to commit T1'); // Shouldn't happen
+        }
+      })()
+    ]);
+
+    expect(t1AttemptData.isFulfilled).to.be.true;
+    expect(t2AttemptData.isRejected).to.be.true;
+    expect(t2AttemptData.reason.message).to.equal('Deadlock found when trying to get lock; try restarting transaction');
+    expect(t1.finished).to.equal('commit');
+    expect(t2.finished).to.equal('rollback');
+    expect(executionOrder).to.deep.equal([
+      'Begin attempt to update via T2',
+      'Begin attempt to update via T1',
+      'Done updating via T1',
+      'Failed to update via T2',
+      'Attempting to commit T1',
+      'Done committing T1'
+    ]);
+
+    if (process.env.CRAZY_DEADLOCK_TESTING_Z) {
+      try {
+        await t1.rollback();
+        console.log('t1rollbackok');
+      } catch (t1rollbackerror) {
+        console.log(`t1rollbackerror (${t1rollbackerror.name})`, t1rollbackerror);
       }
-      throw error;
     }
   }
 
-  console.log('connect_timeout', await sequelize.query("SHOW VARIABLES LIKE 'connect_timeout'"));
-  console.log('wait_timeout', await sequelize.query("SHOW VARIABLES LIKE 'wait_timeout'"));
-  console.log('NET_read_timeout', await sequelize.query("SHOW VARIABLES LIKE 'NET_read_timeout'"));
+  async function runManyTimes(f, count) {
+    for (let i = 0; i < count; i++) {
+      console.log(`### Starting execution ${i+1} of \`${f.name}\``);
 
-  for (let i = 0; i < 20; i++) {
-    console.log('### TEST ' + i);
+      let time = Date.now();
+      let error;
 
-    let errorMessage = "n0thing h4ppen3d";
+      try {
+        await f();
+      } catch (error_) {
+        error = error_;
+      }
 
-    let time = Date.now();
-
-    console.log('[[[starting causeDeadlock()]]]');
-
-    try {
-      await causeDeadlock();
       time = Date.now() - time;
-      console.log(`[[[succeeded in ${time}ms]]]`);
-    } catch (error) {
-      time = Date.now() - time;
-      errorMessage = error.message;
-      console.log(`[[[errored in ${time}ms]]] Error name: ${error.name} || Error message: ${error.message} ~~`);
+
+      if (error) {
+        console.log(`### Execution ${i+1} of \`${f.name}\` finished after ${time} ms with ${error.name}: ${error.message}`);
+      } else {
+        console.log(`### Execution ${i+1} of \`${f.name}\` finished after ${time} ms successfully`);
+      }
+
+      await delay(10);
     }
-
-    expect(errorMessage).to.equal('Deadlock found when trying to get lock; try restarting transaction');
-
-    await delay(10);
   }
+
+  await runManyTimes(verifySelectLockInShareMode, 20);
+  await runManyTimes(verifyDeadlock, 20);
 };
