@@ -68,6 +68,8 @@ module.exports = async function() {
           throw error;
         }
 
+        await delay(30);
+
         try {
           executionOrder.push('Attempting to commit T2');
           await t2.commit();
@@ -112,14 +114,14 @@ module.exports = async function() {
       'Attempting to commit T1', // 150ms after
       'Done committing T1', // right after
       'Done updating via T2', // right after
-      'Attempting to commit T2', // right after
+      'Attempting to commit T2', // 30ms after
       'Done committing T2' // right after
     ];
 
     // The order things happen in the database must be the one shown above. However, sometimes it can happen that
     // the calls in the JavaScript event loop that are communicating with the database do not match exactly this order.
-    // In particular, it is possible that the JS event loop calls log `'Done updating via T2'` before logging `'Done committing T1'`,
-    // even though the database committed t1 first (and then rushed to complete the pending update query from t2).
+    // In particular, it is possible that the JS event loop logs `'Done updating via T2'` before logging `'Done committing T1'`,
+    // even though the database committed T1 first (and then rushed to complete the pending update query from T2).
 
     const anotherAcceptableExecutionOrderFromJSPerspective = [
       'Begin attempt to update via T2',
@@ -127,8 +129,8 @@ module.exports = async function() {
       'Done reading via T1', // right after
       'Attempting to commit T1', // 150ms after
       'Done updating via T2', // right after
-      'Attempting to commit T2', // right after
       'Done committing T1', // right after
+      'Attempting to commit T2', // 30ms after
       'Done committing T2' // right after
     ];
 
@@ -181,6 +183,8 @@ module.exports = async function() {
           throw error;
         }
 
+        await delay(30);
+
         try {
           // We shouldn't reach this point, but if we do, let's at least commit the transaction
           // to avoid forever occupying one connection of the pool with a pending transaction.
@@ -221,7 +225,40 @@ module.exports = async function() {
     expect(t1.finished).to.equal('commit');
     expect(t2.finished).to.equal('rollback');
 
-    console.log('####>> executionOrder\n  ' + executionOrder.join('\n  '));
+    const expectedExecutionOrder = [
+      'Begin attempt to update via T2',
+      'Begin attempt to update via T1', // 100ms after
+      'Done updating via T1', // right after
+      'Failed to update via T2', // right after
+      'Attempting to commit T1', // 150ms after
+      'Done committing T1' // right after
+    ];
+
+    // The order things happen in the database must be the one shown above. However, sometimes it can happen that
+    // the calls in the JavaScript event loop that are communicating with the database do not match exactly this order.
+    // In particular, it is possible that the JS event loop logs `'Failed to update via T2'` before logging `'Done updating via T1'`,
+    // even though the database updated T1 first (and then rushed to declare a deadlock for T2).
+
+    const anotherAcceptableExecutionOrderFromJSPerspective = [
+      'Begin attempt to update via T2',
+      'Begin attempt to update via T1', // 100ms after
+      'Failed to update via T2', // right after
+      'Done updating via T1', // right after
+      'Attempting to commit T1', // 150ms after
+      'Done committing T1' // right after
+    ];
+
+    const executionOrderOk = isDeepEqualToOneOf(
+      executionOrder,
+      [
+        expectedExecutionOrder,
+        anotherAcceptableExecutionOrderFromJSPerspective
+      ]
+    );
+
+    if (!executionOrderOk) {
+      throw new Error(`Unexpected execution order: ${executionOrder.join(' > ')}`);
+    }
   }
 
   async function runManyTimes(f, count) {
@@ -253,6 +290,6 @@ module.exports = async function() {
     }
   }
 
-  await runManyTimes(verifySelectLockInShareMode, 30);
-  await runManyTimes(verifyDeadlock, 30);
+  await runManyTimes(verifySelectLockInShareMode, 100);
+  await runManyTimes(verifyDeadlock, 100);
 };
