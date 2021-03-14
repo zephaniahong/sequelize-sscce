@@ -15,9 +15,8 @@ jobs:
           - '{ name: "MySQL 5.7", image: "mysql:5.7", dialect: "mysql" }'
           # - '{ name: "MariaDB 10.3", image: "mariadb:10.3", dialect: "mariadb" }'
         combination: ['v6']
-        CRAZY_DEADLOCK_TESTING_Z: ['1', '']
-        attempt: [1, 2]
-    name: ${{ fromJson(matrix.db).name }} (${{ matrix.combination }}) (${{ matrix.CRAZY_DEADLOCK_TESTING_Z && 'Z=1' || 'Z=0' }})
+        attempt: [1, 2, 3, 4, 5, 6, 7, 8]
+    name: ${{ fromJson(matrix.db).name }} (${{ matrix.combination }})
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -34,7 +33,6 @@ jobs:
       DIALECT: ${{ fromJson(matrix.db).dialect }}
       CI_COMBINATION: ${{ matrix.combination }}
       CRAZY_DEADLOCK_TESTING_C: true
-      CRAZY_DEADLOCK_TESTING_Z: ${{ matrix.CRAZY_DEADLOCK_TESTING_Z }}
       DEBUG: 'sequelize:*'
     steps:
       - run: mysql --host 127.0.0.1 --port 3306 -uroot -psequelize_test -e "GRANT ALL ON *.* TO 'sequelize_test'@'%' with grant option; FLUSH PRIVILEGES;"
