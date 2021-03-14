@@ -137,7 +137,7 @@ module.exports = async function() {
     // TODO: make sure that if `anotherAcceptableExecutionOrderFromJSPerspective` is seen, still necessarily the order in the database was `expectedExecutionOrder`
 
     function orderMatches(a, b) {
-      return a.join('|') === b.join('|');
+      return a.map(x => x.replace(/^\[.+\] /, '')).join('|') === b.join('|');
     }
 
     if (orderMatches(executionOrder, expectedExecutionOrder)) {
