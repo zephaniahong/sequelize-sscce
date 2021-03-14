@@ -175,11 +175,11 @@ module.exports = async function() {
     const [t2AttemptData, t1AttemptData] = await pSettle([
       (async () => {
         try {
-          executionOrder.push(Date.now() + ' Begin attempt to update via T2');
+          executionOrder.push('Begin attempt to update via T2');
           await t2Jan.update({ awesome: false }, { transaction: t2 });
-          executionOrder.push(Date.now() + ' Done updating via T2'); // Shouldn't happen
+          executionOrder.push('Done updating via T2'); // Shouldn't happen
         } catch (error) {
-          executionOrder.push(Date.now() + ' Failed to update via T2');
+          executionOrder.push('Failed to update via T2');
           throw error;
         }
 
@@ -188,33 +188,33 @@ module.exports = async function() {
         try {
           // We shouldn't reach this point, but if we do, let's at least commit the transaction
           // to avoid forever occupying one connection of the pool with a pending transaction.
-          executionOrder.push(Date.now() + ' Attempting to commit T2');
+          executionOrder.push('Attempting to commit T2');
           await t2.commit();
-          executionOrder.push(Date.now() + ' Done committing T2');
+          executionOrder.push('Done committing T2');
         } catch {
-          executionOrder.push(Date.now() + ' Failed to commit T2');
+          executionOrder.push('Failed to commit T2');
         }
       })(),
       (async () => {
         await delay(100);
 
         try {
-          executionOrder.push(Date.now() + ' Begin attempt to update via T1');
+          executionOrder.push('Begin attempt to update via T1');
           await t1Jan.update({ awesome: true }, { transaction: t1 });
-          executionOrder.push(Date.now() + ' Done updating via T1');
+          executionOrder.push('Done updating via T1');
         } catch (error) {
-          executionOrder.push(Date.now() + ' Failed to update via T1'); // Shouldn't happen
+          executionOrder.push('Failed to update via T1'); // Shouldn't happen
           throw error;
         }
 
         await delay(150);
 
         try {
-          executionOrder.push(Date.now() + ' Attempting to commit T1');
+          executionOrder.push('Attempting to commit T1');
           await t1.commit();
-          executionOrder.push(Date.now() + ' Done committing T1');
+          executionOrder.push('Done committing T1');
         } catch {
-          executionOrder.push(Date.now() + ' Failed to commit T1'); // Shouldn't happen
+          executionOrder.push('Failed to commit T1'); // Shouldn't happen
         }
       })()
     ]);
